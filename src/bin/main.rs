@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener};
 use std::thread;
-use telnet_server::telnet::TelnetSession;
+use telnet_server::telnet::{TelnetSession, TelnetSessionConfig};
 
 const BIND_ADDRESS: &str = "127.0.0.1:9000";
 const MAX_MESSAGE_SIZE: usize = 4096;
@@ -19,7 +19,10 @@ fn main() -> std::io::Result<()> {
                 }
             };
 
-            let mut telnet_session = TelnetSession::create();
+            let session_config = TelnetSessionConfig {
+                handle_ansi_escape_sequences: false,
+            };
+            let mut telnet_session = TelnetSession::create(&session_config);
             let mut buffer: [u8; MAX_MESSAGE_SIZE] = [0; MAX_MESSAGE_SIZE];
             let mut response = vec![];
 

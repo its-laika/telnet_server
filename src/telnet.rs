@@ -54,6 +54,15 @@ pub struct TelnetSession {
     state: TelnetState,
     /// Returns whether every incoming, non-command char should be echoed back to the client
     is_echoing: bool,
+    /// If false, ansi escape sequences won't be included in the buffer nor will they be
+    /// returned back to the client. Instead, a BEL will be returned after the sequence
+    handle_ansi_escape_sequences: bool,
+}
+
+pub struct TelnetSessionConfig {
+    /// If false, ansi escape sequences won't be included in the buffer nor will they be
+    /// returned back to the client. Instead, a BEL will be returned after the sequence
+    pub handle_ansi_escape_sequences: bool,
 }
 
 /// Enumeration of states that the `TelnetSession` may have on the server side.
@@ -161,12 +170,17 @@ impl TelnetSession {
     }
 
     /// Creates a new `TelnetSettion`
-    pub fn create() -> TelnetSession {
+    ///
+    /// # Arguments
+    /// * `pass_ansi_escape_sequences` - if true, ANSI escape sequences will be
+    ///   handled, returned etc. Otherwise they will be ignored
+    pub fn create(config: &TelnetSessionConfig) -> TelnetSession {
         TelnetSession {
             data: vec![],
             stream: vec![],
             state: TelnetState::Idle,
             is_echoing: false,
+            handle_ansi_escape_sequences: config.handle_ansi_escape_sequences,
         }
     }
 }
@@ -193,7 +207,12 @@ fn update_session_idle(session: &mut TelnetSession, next: u8) -> Option<Vec<u8>>
             }
         }
         CHAR_ERASE_LINE => erase_current_line(&mut session.data),
-        CHAR_ESCAPE => session.state = TelnetState::AnsiEscapeSequence,
+        CHAR_ESCAPE => {
+            session.state = TelnetState::AnsiEscapeSequence;
+            if session.handle_ansi_escape_sequences {
+                session.data.push(next as char);
+            }
+        }
         _ => {
             session.data.push(next as char);
 
@@ -335,13 +354,27 @@ fn update_session_sub_negotiation(session: &mut TelnetSession, next: u8) -> Opti
 ///
 /// If `Some(Vec<u8>)` is returned, it should be sent to the Telnet client.
 fn update_session_escape_sequence(session: &mut TelnetSession, next: u8) -> Option<Vec<u8>> {
-    /* We're NOT handling those escape sequences. */
-    if !CHARS_ESCAPE_SEQUENCE_END.contains(&(next as char)) {
-        return None;
-    }
+    if session.handle_ansi_escape_sequences {
+        session.data.push(next as char);
 
-    session.state = TelnetState::Idle;
-    Some(vec![CHAR_BEL])
+        if CHARS_ESCAPE_SEQUENCE_END.contains(&(next as char)) {
+            session.state = TelnetState::Idle;
+        }
+
+        if session.is_echoing {
+            Some(vec![next])
+        } else {
+            None
+        }
+    } else {
+        if !CHARS_ESCAPE_SEQUENCE_END.contains(&(next as char)) {
+            return None;
+        }
+
+        session.state = TelnetState::Idle;
+
+        Some(vec![CHAR_BEL])
+    }
 }
 
 /// Erases the current line from given text buffer. According to
