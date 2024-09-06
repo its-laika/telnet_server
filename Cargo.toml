@@ -2,10 +2,10 @@
 name = "telnet_server"
 version = "0.0.1"
 edition = "2021"
-authors = ["Niklas 'Curly' Schmidt <github+curly@likely.gay>"]
+authors = ["Niklas Schmidt"]
 description = "A bare telnet server provider"
 readme = "README.md"
-repository = "https://github.com/neon-JS/telnet_server"
+repository = "https://github.com/its-laika/telnet_server"
 license = "MIT"
 keywords = ["telnet", "telnet-server"]
 exclude = [".github/", ".vscode/", "resources/", "telnet_docker/", ".gitignore"]
