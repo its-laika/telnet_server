@@ -2,14 +2,14 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "telnet_server: Start telnet Docker",
+            "label": "telnet_server: Start TELNET Docker",
             "type": "shell",
-            "command": "./telnet_docker/run_telnet.sh",
+            "command": "./telnet/run_telnet.sh",
             "args": [
                 "${input:host}",
                 "${input:port}"
             ],
-            "detail": "Starts a Docker container (in interactive mode) that runs telnet and connects to given host and port",
+            "detail": "Starts a Docker container (in interactive mode) that runs TELNET and connects to given host and port",
             "problemMatcher": []
         }
     ],
@@ -18,13 +18,13 @@
             "id": "host",
             "type": "promptString",
             "default": "host.docker.internal",
-            "description": "Which host should the telnet client connect to?"
+            "description": "Which host should the TELNET client connect to?"
         },
         {
             "id": "port",
             "type": "promptString",
             "default": "9000",
-            "description": "Which port should the telnet client connect to?"
+            "description": "Which port should the TELNET client connect to?"
         },
     ]
 }

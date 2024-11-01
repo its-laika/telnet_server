@@ -1,79 +1,48 @@
-use std::io::{Read, Write};
-use std::net::{Shutdown, TcpListener};
+use std::io::{Error, Write};
+use std::net::{TcpListener, TcpStream};
 use std::thread;
-use telnet_server::telnet::{TelnetSession, TelnetSessionConfig};
+use telnet_server::read::Read;
+use telnet_server::telnet::{Session, State, StateConfig};
 
 const BIND_ADDRESS: &str = "127.0.0.1:9000";
-const MAX_MESSAGE_SIZE: usize = 4096;
 
 fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind(BIND_ADDRESS)?;
 
     for stream in listener.incoming() {
         thread::spawn(move || {
-            let mut stream = match stream {
-                Ok(s) => s,
-                Err(_) => {
-                    /* Stream not available. Just drop this client. */
-                    return;
-                }
+            if let Ok(stream) = stream {
+                let _ = handle_connection(stream);
             };
-
-            let session_config = TelnetSessionConfig {
-                handle_ansi_escape_sequences: false,
-            };
-            let mut telnet_session = TelnetSession::create(&session_config);
-            let mut buffer: [u8; MAX_MESSAGE_SIZE] = [0; MAX_MESSAGE_SIZE];
-            let mut response = vec![];
-
-            loop {
-                /* Try loading next client message / command */
-                let read_bytes = match stream.read(&mut buffer) {
-                    Ok(0) => {
-                        /* Connection closed. Shutdown may fail but we'll ignore that as
-                         * the client is dropped anyway. */
-                        stream.shutdown(Shutdown::Both).unwrap_or_default();
-                        return;
-                    }
-                    Ok(c) => c,
-                    Err(_) => {
-                        /* Stream not available. Just drop this client. */
-                        return;
-                    }
-                };
-
-                response.clear();
-
-                if let Some(telnet_data) = telnet_session.accept_data(&buffer[..read_bytes]) {
-                    response.extend_from_slice(telnet_data.as_slice());
-                }
-
-                if let Some(message_response) = generate_message_response(&mut telnet_session) {
-                    response.extend_from_slice(message_response.as_slice());
-                }
-
-                if !response.is_empty() && stream.write_all(response.as_slice()).is_err() {
-                    /* Stream not available. Just drop this client. */
-                    return;
-                }
-            }
         });
     }
 
     Ok(())
 }
 
-fn generate_message_response(telnet_session: &mut TelnetSession) -> Option<Vec<u8>> {
-    let message = telnet_session
-        .get_data_buffer()
-        .iter()
-        .map(|&c| c as u8)
-        .collect::<Vec<u8>>();
+fn handle_connection(tcp_stream: TcpStream) -> Result<(), Error> {
+    // Set up State and Session
+    let state_config = StateConfig::default();
+    let state = State::new(&state_config);
+    let mut session = Session::new(state, tcp_stream)?;
 
-    if let Some(&_last @ b'\n') = message.last() {
-        telnet_session.clear_data_buffer();
-        return Some(["You sent: ".as_bytes(), &message, "\r\n".as_bytes()].concat());
+    // Make the Session listen to incoming TCP data in the background
+    let session_listen = session.clone();
+    let handle = thread::spawn(move || session_listen.listen());
+
+    loop {
+        // Handle incoming TELNET messages:
+        let incoming = session.read_line_waiting()?;
+        let answer = format!("You sent: {incoming}");
+
+        if session.write_all(answer.as_bytes()).is_err() {
+            break;
+        }
+
+        if session.flush().is_err() {
+            break;
+        }
     }
 
-    None
+    handle.join().expect("Should await thread")
 }

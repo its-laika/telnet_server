@@ -28,9 +28,5 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install required cargo
-        run: cargo install clippy-sarif sarif-fmt
-
       - name: Run rust-clippy
-        run: cargo clippy
-          --all-features
+        run: cargo clippy --all-features
